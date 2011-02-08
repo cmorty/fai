@@ -1,5 +1,21 @@
 fai (3.4.8) unstable; urgency=low
 
+fai (3.4.7ubuntu2) natty; urgency=low
+
+  * Changes for Ubuntu:
+    + /etc/fai/make-fai-nfsroot.conf:
+      - add "--include=aptitude" to FAI_DEBOOTSTRAP_OPTS because
+        aptitude changed from Priority: important to optional,
+        therefore debootstrap won't install it by default anymore.
+        (LP: #714570)
+      - add "dhcp-client" to "--exclude" options for FAI_DEBOOTSTRAP_OPTS
+    + bin/fai-cd:
+      - Fixed missing grub-common package (LP: #710311)
+
+ -- Stephan Adig <sh@sourcecode.de>  Tue, 08 Feb 2011 07:05:15 +0000
+
+fai (3.4.7ubuntu1) natty; urgency=low
+
   [ Michael Goetze ]
   * [eeae848] package_config/FAISERVER: remove mkisofs
   * [af1d1de] simple-examples: in squeeze, the GRUB 1 package is called
