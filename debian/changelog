@@ -1,3 +1,11 @@
+fai (3.4.8ubuntu3) quantal; urgency=low
+
+  * Switch Depends: to isc-dhcp-server following dhcp3-server to
+    isc-dhcp-server transition.  Note that the existing code already
+    handles the appropriate configuration file names.
+
+ -- Andy Whitcroft <apw@ubuntu.com>  Tue, 31 Jul 2012 14:28:22 +0100
+
 fai (3.4.8ubuntu2) precise; urgency=low
 
   * In the case FAI is started in an Upstart environment, check if an
