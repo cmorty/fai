@@ -1,3 +1,12 @@
+fai (3.4.8ubuntu4) raring; urgency=low
+
+  * Check mdadm-startall before calling, as that binary is not shipped in
+    ubuntu. (LP: #1008250)
+  * Cherry pick https://github.com/faiproject/fai/commit/4b7b93c0bc25d49ce1293e1da7491923df56b18f.patch
+    To remove duplicate use Storable.
+
+ -- Dmitrijs Ledkovs <dmitrij.ledkov@ubuntu.com>  Mon, 11 Feb 2013 04:16:00 +0000
+
 fai (3.4.8ubuntu3) quantal; urgency=low
 
   * Switch Depends: to isc-dhcp-server following dhcp3-server to

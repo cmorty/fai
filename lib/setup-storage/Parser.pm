@@ -34,6 +34,8 @@ use strict;
 ################################################################################
 
 use Parse::RecDescent;
+use Storable qw(dclone);
+
 
 package FAI;
 
@@ -578,8 +580,6 @@ $FAI::Parser = Parse::RecDescent->new(
 	  my $ref_dev = &FAI::resolve_disk_shortname($1);
 	  defined($FAI::configs{"PHY_" . $ref_dev}) or die "Reference device $ref_dev not found in config\n";
 
-	  use Storable qw(dclone);
-
 	  $FAI::configs{$FAI::device} = dclone($FAI::configs{"PHY_" . $ref_dev});
     # add entries to device tree
     defined($FAI::dev_children{$ref_dev}) or
@@ -598,8 +598,6 @@ $FAI::Parser = Parse::RecDescent->new(
 	{
 	  my $ref_dev = &FAI::resolve_disk_shortname($1);
 	  defined($FAI::configs{"PHY_" . $ref_dev}) or die "Reference device $ref_dev not found in config\n";
-
-	  use Storable qw(dclone);
 
 	  $FAI::configs{$FAI::device} = dclone($FAI::configs{"PHY_" . $ref_dev});
     # add entries to device tree
