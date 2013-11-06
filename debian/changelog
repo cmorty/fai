@@ -1,3 +1,9 @@
+fai (3.4.8ubuntu5) trusty; urgency=low
+
+  * Suggest ntfs-3g, instead of ntfsprogs. (LP: #1216470)
+
+ -- Dmitrijs Ledkovs <xnox@ubuntu.com>  Wed, 06 Nov 2013 00:43:24 +0000
+
 fai (3.4.8ubuntu4) raring; urgency=low
 
   * Check mdadm-startall before calling, as that binary is not shipped in
