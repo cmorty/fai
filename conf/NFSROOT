@@ -6,7 +6,7 @@ rsync lftp less dump reiserfsprogs e2fsprogs usbutils
 hwinfo psmisc pciutils hdparm smartmontools parted mdadm lvm2
 dnsutils ntpdate dosfstools jove xfsprogs xfsdump
 procinfo dialog discover
-console-tools console-common
+console-setup console-common
 iproute udev subversion liblinux-lvm-perl
 
 # needed for the simple examples
@@ -16,15 +16,15 @@ cfengine2 libapt-pkg-perl
 # architecture dependend list of packages that are installed
 
 PACKAGES aptitude I386
-grub lilo read-edid
-linux-image-486
+grub-pc lilo read-edid
+linux-image-server
 
 # packages for lenny:
 # linux-image-486 aufs-modules-2.6-486
 
 PACKAGES aptitude AMD64
-grub lilo
-linux-image-2.6-amd64
+grub-pc lilo
+linux-image-server
 # packages for lenny:
 # linux-image-2.6-amd64 aufs-modules-2.6-amd64
 

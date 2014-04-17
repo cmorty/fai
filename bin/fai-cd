@@ -138,10 +138,10 @@ create_grub2_image() {
 	if [ -z "$grubCommonPackage" ]; then
 	    die 22 "Downloading grub-common failed."
 	fi 
+
 	GRUBDIR=$tmp/grubPackage
 	mkdir -p $GRUBDIR
 	dpkg -x $grubPackage $GRUBDIR
-	dpkg -x $grubCommonPackage $GRUBDIR
 	cd $GRUBDIR
 	if ./usr/bin/grub-mkimage --help | grep -q -- --format ; then
 	    ./usr/bin/grub-mkimage -d usr/lib/grub/*-pc -o $tmp/boot/grub/core.img biosdisk iso9660 --format=i386-pc
