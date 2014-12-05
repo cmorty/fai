@@ -77,8 +77,9 @@ our @commands = qw/y2i y2r zypper zypper-rm yast rpmr urpmi urpme yumgroup yumi 
            "taskrm" => "tasksel remove",
              "hold" => "dpkg --set-selections",
    "clean-internal" => "apt-get clean",
-         "aptitude" => "aptitude -R $aptopt install",
-       "aptitude-r" => "aptitude -r $aptopt install",
+         "aptitude" => "aptitude -R --schedule-only  $aptopt install",
+       "aptitude-r" => "aptitude -r --schedule-only  $aptopt install",
+"aptitude-internal" => "aptitude $aptopt install",
              "cupt" => "cupt -R $aptopt install",
            "cupt-r" => "cupt $aptopt install",
            "unpack" => "cd $downloaddir; aptitude download",
@@ -240,6 +241,8 @@ foreach my $entry (@preloadrmlist) {
 }
 
 if ($hasdebian) {
+  # install packages
+  execute("$rootcmd $command{'aptitude-internal'}");
   # in case of unconfigured packages because of apt errors
   # retry configuration
   execute("$rootcmd $command{'pending-internal'}");
