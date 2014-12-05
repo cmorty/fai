@@ -359,6 +359,13 @@ create_nfsroot() {
     # save the list of all packages in the base.tar.gz
     $ROOTCMD dpkg --get-selections | awk '/install$/ {print $1}' > var/tmp/base-pkgs.lis
 
+    # Export all the information we have about the system
+    local iarch=$($ROOTCMD dpkg --print-architecture|tr /a-z/ /A-Z/)
+    local distro=$(. $NFSROOT/etc/os-release; echo ${ID} ${ID}_${VERSION_ID})
+    export FAI_ROOT=$NFSROOT
+    export classes="NFSROOT $iarch $distro"
+    echo Classes are set to $classes
+
     if [ -n "$FAI_DEBMIRROR" ]; then
         [ "$verbose" ] && echo "Mounting $FAI_DEBMIRROR to $NFSROOT/$MNTPOINT."
         mkdir -p $NFSROOT/$MNTPOINT
@@ -390,8 +397,8 @@ EOF
     mkdir $NFSROOT/etc/dracut.conf.d
     echo "omit_dracutmodules+=systemd" > $NFSROOT/etc/dracut.conf.d/12-no-systemd.conf
 
-    # this copies sources.list into the nfsroot
-    cp -La $cfdir/apt $NFSROOT/etc
+    # Copy apt configuration to nfsroot
+    fcopy -s $cfdir/apt -t $NFSROOT/etc/apt sources.list
 
     add_etc_hosts_entries
 

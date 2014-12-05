@@ -1,0 +1,19 @@
+
+deb http://ftp.fau.de/ubuntu trusty 	      main restricted universe multiverse
+deb http://ftp.fau.de/ubuntu trusty-updates   main restricted universe multiverse
+deb http://ftp.fau.de/ubuntu trusty-security  main restricted universe multiverse
+deb http://ftp.fau.de/ubuntu trusty-backports main restricted universe multiverse
+
+deb-src http://ftp.fau.de/ubuntu trusty           main restricted universe multiverse
+deb-src http://ftp.fau.de/ubuntu trusty-updates   main restricted universe multiverse
+deb-src http://ftp.fau.de/ubuntu trusty-security  main restricted universe multiverse
+deb-src http://ftp.fau.de/ubuntu trusty-backports main restricted universe multiverse
+
+deb http://archive.canonical.com/ubuntu     trusty partner
+deb-src http://archive.canonical.com/ubuntu trusty partner
+
+deb http://security.ubuntu.com/ubuntu     trusty-security main restricted universe multiverse
+deb-src http://security.ubuntu.com/ubuntu trusty-security main restricted universe multiverse
+
+deb http://ppa.launchpad.net/morty/fai-release/ubuntu trusty main
+
