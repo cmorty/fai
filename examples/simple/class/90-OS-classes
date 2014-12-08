@@ -1,0 +1,7 @@
+#! /bin/bash
+
+# While using the code name would be nicer, DISTRO_VERSION has the advantage
+# that it can also be used for the NFSroot as lsb_realease is not part of
+# Debians base system.
+source $NFSROOT/etc/os-release
+echo ${ID} ${ID}_${VERSION_ID} | tr '[:lower:]' '[:upper:]'

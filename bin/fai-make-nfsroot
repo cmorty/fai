@@ -361,7 +361,7 @@ create_nfsroot() {
 
     # Export all the information we have about the system
     local iarch=$($ROOTCMD dpkg --print-architecture|tr /a-z/ /A-Z/)
-    local distro=$(. $NFSROOT/etc/os-release; echo ${ID} ${ID}_${VERSION_ID})
+    local distro=$(. $NFSROOT/etc/os-release; echo ${ID} ${ID}_${VERSION_ID} | tr '[:lower:]' '[:upper:]')
     export FAI_ROOT=$NFSROOT
     export classes="NFSROOT $iarch $distro"
     echo Classes are set to $classes
