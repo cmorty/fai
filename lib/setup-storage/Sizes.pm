@@ -651,7 +651,7 @@ sub compute_partition_sizes
         (&FAI::phys_dev($FAI::partition_pointer_dev_name))[2];
       my ($s, $e) = &FAI::make_range("1-1", $current_disk->{size} . "B");
       # enter the range into the hash
-      $FAI::partition_pointer->{size}->{range} = "$s-$s";
+      $FAI::partition_pointer->{size}->{range} = "1-1";
       # retain the free space at the beginning and fix the position
       $FAI::partition_pointer->{start_byte} = $next_start;
       $FAI::partition_pointer->{end_byte} = $next_start + $s - 1;
