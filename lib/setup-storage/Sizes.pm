@@ -458,7 +458,7 @@ sub do_partition_real {
     $next_start;
 
   if (1 == $part_id) {
-    $max_avail = $current_disk->{size} - $next_start;
+    $max_avail = $current_disk->{end_byte} + 1 - $next_start;
     $max_avail = "${max_avail}B";
   }
   my ($start, $end) = &FAI::make_range($part->{size}->{range}, $max_avail);
@@ -663,7 +663,7 @@ sub compute_partition_sizes
     }
 
     # the size of a 100% partition (the 100% available to the user)
-    my $max_avail = $current_disk->{size} - $next_start;
+    my $max_avail = $current_disk->{end_byte} + 1 - $next_start;
     # expressed in bytes
     $max_avail = "${max_avail}B";
 
