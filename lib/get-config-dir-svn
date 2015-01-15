@@ -55,6 +55,8 @@ if [ -d "$FAI/.svn" ] ; then
     if [ `svn info $FAI | grep '^URL:' | awk '{print $2}'` == "$svnurl" ]; then
         echo "Updating SVN in $FAI"
         cd $FAI
+        # Make sure the repo is clean and can be updated
+        svn cleanup
         svn up $user $pass | grep -v 'Updated to revision' > $LOGDIR/getconf.log
         task_error 881 ${PIPESTATUS[0]}
     else
