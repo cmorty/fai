@@ -19,11 +19,13 @@ if [ "$FAI_ACTION" = "install" -o "$FAI_ACTION" = "dirinstall" ]; then
     fai-divert -a /sbin/init /usr/sbin/liloconfig /usr/sbin/invoke-rc.d
     fai-divert -a /usr/sbin/policy-rc.d
     # never start any daemons inside chroot during installtion
-    cat > $FAI_ROOT/usr/sbin/policy-rc.d <<EOF
+    if [ -f /usr/sbin/policy-rc.d ] ; then
+        cat > $FAI_ROOT/usr/sbin/policy-rc.d <<EOF
 #!/bin/sh
 exit 101
 EOF
-    chmod a+rx $FAI_ROOT/usr/sbin/policy-rc.d
+        chmod a+rx $FAI_ROOT/usr/sbin/policy-rc.d
+   fi
 fi
 
 export aptopt="-y -o Dpkg::Options::=--force-confnew"
