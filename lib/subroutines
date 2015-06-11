@@ -703,7 +703,7 @@ task_softupdate() {
     stamp=/var/run/fai/fai_softupdate_is_running
     [ -f "$stamp" ] && die "Lock file $stamp found. Another fai softupdate is already running. Aborting."
     echo $$ > $stamp
-    trap "rm -f $stamp" INT QUIT EXIT
+    trap "rm -f $stamp" QUIT EXIT
 
     # the following copy operation is required to make $LOGDIR a reliable source
     # for disk_var.sh
