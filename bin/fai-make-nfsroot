@@ -405,7 +405,8 @@ EOF
 
     [ -f etc/init/tty1.conf ] || ln -s /usr/sbin/fai etc/init.d/rcS
     if [ -d etc/init ]; then   # if upstart is available
-        find etc/init ! -type d | egrep -v "fai|udev|hostname|mountall|mounted" | xargs -r rm
+        # Note: FAI must be removed, too, as the sysV-compatibility layer will start it.
+        find etc/init ! -type d | egrep -v "udev|hostname|mountall|mounted" | xargs -r rm
     fi
 
     rm -f etc/mdadm/mdadm.conf # remove file which may contain info of the install server
