@@ -5,7 +5,7 @@
 # subroutines -- useful subroutines for FAI
 #
 # This script is part of FAI (Fully Automatic Installation)
-# (c) 2000-2014 by Thomas Lange, lange@informatik.uni-koeln.de
+# (c) 2000-2015 by Thomas Lange, lange@informatik.uni-koeln.de
 # Universitaet zu Koeln
 # (c) 2001-2005 by Henning Glawe, glaweh@physik.fu-berlin.de
 # Freie Universitaet Berlin
@@ -183,6 +183,8 @@ task_error() {
 # Short-Description: call a certain task
 ### END SUBROUTINE INFO
 
+declare -A taskduration
+export duration=0
 task() {
 
     # hooks are called before a task is called
@@ -197,14 +199,16 @@ task() {
     if [ -f $LOGDIR/skip.$taskname ]; then
         # skip task
         rm $LOGDIR/skip.$taskname # TODO: remove skip files at the very end
-        [ "$verbose" ] && echo "Skiping task_$taskname"
+        [ "$verbose" ] && echo "Skipping task_$taskname"
         sendmon "TASKSKIP $taskname"
     else
         echo "Calling task_$taskname"
         sendmon "TASKBEGIN $taskname"
         task_error=0   # task can set this variable to indicate an error
         task_error_func=''
+        taskduration[$taskname]=$SECONDS
         task_$taskname "$@"
+        [ $duration -eq 1 ] && echo "Duration of task $taskname: " $(($SECONDS-${taskduration[$taskname]}))"s"
         sendmon "TASKEND $taskname $task_error"
         if [ "$task_error" -ne 0 ] ; then
           echo "Exit code task_$taskname: $task_error" >&2
@@ -215,7 +219,7 @@ task() {
 ### BEGIN SUBROUTINE INFO
 # Provides-Var:
 # Required-Var:      $classes $debug
-# Short-Description: call a hook, hook.source can define additional variables
+# Short-Description: call a hook, hook.sh can define additional variables
 ### END SUBROUTINE INFO
 
 call_hook() {
@@ -232,9 +236,13 @@ call_hook() {
             echo "WARNING: Skipping $hfile because it's not executable." >&2
             continue
         fi
-        if [ -f $hfile.source -a ! -x $hfile.source ]; then
-            echo "WARNING: Skipping $hfile.source because it's not executable." >&2
+        if [ -f $hfile.sh -a ! -x $hfile.sh ]; then
+            echo "WARNING: Skipping $hfile.sh because it's not executable." >&2
             continue
+        fi
+        if [ -f $hfile.source ]; then
+            echo "WARNING: The suffix .source is deprecated. Use .sh instead." >&2
+            # continue
         fi
         if [ -x $hfile ]; then
             echo "Calling hook: $hook.$cl"
@@ -243,7 +251,15 @@ call_hook() {
             $hfile $dflag "$@"
             check_status $hook.$cl $?
         fi
-        if [ -x $hfile.source ]; then
+        if [ -x $hfile.sh ]; then
+            echo "Source hook: $hook.$cl.sh"
+            sendmon "HOOK $hook.$cl.sh"
+            # source this hook
+            . $hfile.sh $dflag "$@"
+            check_status $hook.$cl.sh $?
+        fi
+        # deprecated
+	if [ -x $hfile.source ]; then
             echo "Source hook: $hook.$cl.source"
             sendmon "HOOK $hook.$cl.source"
             # source this hook
@@ -437,15 +453,15 @@ task_defvar() {
             # show only lines with ++, we cannot use a pipe, since it would call
             # _devfar in a subprocess. Then, variables are not defined
             _defvar $class.var > $svar 2>&1
-            grep ^++ $svar
+            grep ^++ $svar|sed -e 's/ROOTPW=.*/ROOTPW=XXXXXXXXXXXXX/'
             rm $svar
         fi
     done
 
-    echo "Defining variables from additional.var"
     # /fai/class/* scripts or hooks can write variable definitions
     # to additonal.var. now source these definitions
     if [ -f $LOGDIR/additional.var -a -r $LOGDIR/additional.var ]; then
+        echo "Defining variables from additional.var"
         _defvar $LOGDIR/additional.var > $svar 2>&1
         grep ^++ $svar
         rm $svar
@@ -470,6 +486,11 @@ task_mountdisks() {
     if [ "$?" -ne 0 ]; then
         sendmon "TASKERROR mountdisks 885"
         task_error 885
+    fi
+    if [ $do_init_tasks -eq 1 ] && ! mountpoint -q $target; then
+        echo "$target is not a mount point. Check your disk_config file."
+        sendmon "TASKERROR mountdisks 886"
+        task_error 886
     fi
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -503,6 +524,7 @@ task_savelog() {
     [ -f $LOGDIR/FAI_CLASSES ] && cp -pu $LOGDIR/FAI_CLASSES $FAI_ROOT/var/lib/fai
     [ -f $LOGDIR/disk_var.sh ] && cp -pu $LOGDIR/disk_var.sh $FAI_ROOT/var/lib/fai
     fai-savelog -r
+    task_error 410 $?
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ### BEGIN SUBROUTINE INFO
@@ -571,7 +593,7 @@ EOF
         # never reached, because chroot will reboot the machine
         die "Internal error when calling /tmp/rebootCD." >&2
     fi
-    umount $FAI_ROOT/proc
+    umount $FAI_ROOT/proc $FAI_ROOT/sys $FAI_ROOT/dev/pts 2>/dev/null
     umount -arf 2>/dev/null
 
     # reboot or halt?
@@ -752,6 +774,17 @@ eval_cmdline() {
 
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+read_fai_monitor_vars() {
+
+    # read variables which are received from the fai-monitor
+    if [ ! -s /run/initramfs/fai-variables ]; then
+	return
+    fi
+
+    eval `grep FAI_CONFIG_SRC /run/initramfs/fai-variables`
+    eval `grep FAI_FLAGS /run/initramfs/fai-variables`
+}
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ### BEGIN SUBROUTINE INFO
 # Provides-Var:    $faimond $sendid $SERVER $monserver
 # Requires-Var:    $LOGDIR $FAI
@@ -762,6 +795,8 @@ eval_cmdline() {
 task_confdir() {
 
     if [ $do_init_tasks -eq 1 ] ; then
+
+	read_fai_monitor_vars
         eval_cmdline
 
         get-boot-info
@@ -823,6 +858,14 @@ task_confdir() {
         fi
     fi
 
+    local mdir=/lib/modules/`uname -r`
+    if [ $do_init_tasks -eq 1 ] && [ ! -d $mdir ]; then
+        echo "ERROR: Kernel modules directory $mdir not available. Only found:"
+        ls -d /lib/modules/*
+        echo ""
+        task_error 790
+    fi
+
     get-config-dir || {
         echo "Problems accessing the config space."
         die ""
@@ -854,8 +897,14 @@ task_partition() {
 
     # partitioning tool must create $LOGDIR/disk_var.sh file
     if [ ! -s $LOGDIR/disk_var.sh ]; then
+        local conffile=$(grep "Using config file:" $LOGDIR/format.log | cut -d: -f2 )
+        if [ -n "$conffile" ]; then
+            echo ""
+            echo "This is your disk_config file:"
+            cat $conffile
+        fi
+        echo ""
         task_error 710
-        cat $LOGDIR/format.log
         sendmon "TASKERROR partition 21"
         die "Partitioning tool did not create $LOGDIR/disk_var.sh file."
     fi
@@ -890,7 +939,7 @@ task_extrbase() {
     local fs=$FAI_ROOT/etc/fstab
 
     fetch-basefile
-    echo "Unpacking Debian base archive"
+    echo "Unpacking distro base archive"
     # remember, ftar extracts into $FAI_ROOT by default, so / means $FAI_ROOT/
     # copy the base file class based if it exists
     [ -d $FAI/basefiles ] && ftar -1v -s $FAI/basefiles /
@@ -898,8 +947,6 @@ task_extrbase() {
         if [ $do_init_tasks -eq 1 ]; then
             ftar -1v -c base -s /var/tmp /
         else
-            [ -d $NFSROOT/live/filesystem.dir/var/tmp ] &&
-               ftar -1v -c base -s $NFSROOT/live/filesystem.dir/var/tmp /
             [ -d $NFSROOT/var/tmp ] &&
                ftar -1v -c base -s $NFSROOT/var/tmp /
         fi
@@ -913,8 +960,7 @@ task_extrbase() {
         fi
     fi
     # now we can copy fstab
-    [ -f $fs ] && mv $fs $fs.old
-    [ -f $LOGDIR/fstab ] && cp -p $LOGDIR/fstab $fs
+    [ -f $LOGDIR/fstab ] && cp -S.old -bp $LOGDIR/fstab $fs
     # copy crypttab, if setup-storage created one
     [ -f $LOGDIR/crypttab ] && cp -p $LOGDIR/crypttab $FAI_ROOT/etc/crypttab
     # make /var/lib/dpkg a ramdisk
@@ -936,7 +982,7 @@ mount_mirror() {
     if mount $romountopt $FAI_DEBMIRROR ${FAI_ROOT}${MNTPOINT}; then
       [ "$debug" ] && echo "Mirror mounted from $FAI_DEBMIRROR to ${FAI_ROOT}${MNTPOINT}"
     else
-      sendmon "TASKERROR mirror $?"
+      sendmon "TASKERROR repository $?"
       die "Can't mount $FAI_DEBMIRROR"
     fi
 }
@@ -985,7 +1031,7 @@ task_repository () {
             :
 	    # no need for copy since both are pointing to the same file
         else
-            cp -v /etc/resolv.conf $FAI_ROOT/etc
+            [ -f /etc/resolv.conf ] && cp -v /etc/resolv.conf $FAI_ROOT/etc
         fi
     fi
     if ! fcopy -BMv /etc/hosts ; then
@@ -1004,6 +1050,8 @@ task_repository () {
 APT::Get::AllowUnauthenticated "true";
 Aptitude::CmdLine::Ignore-Trust-Violations yes;
 EOF
+    else
+	rm -f $FAI_ROOT/etc/apt/apt.conf.d/10fai
     fi
 
     # add apt keys for signed repositories
@@ -1018,7 +1066,7 @@ EOF
     for keyfile in ${classes:-}; do
         [ ! -f $FAI/package_config/$keyfile.asc ] && continue
         echo -n "Loading APT key from $keyfile.asc "
-        cat $FAI/package_config/$keyfile.asc | $ROOTCMD apt-key add -
+        cat $FAI/package_config/$keyfile.asc | $ROOTCMD apt-key --keyring /etc/apt/trusted.gpg.d/$keyfile.asc.gpg add -
         unset keys["$keyfile.asc"]
     done
 

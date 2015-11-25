@@ -1,3 +1,140 @@
+fai (5.0) unstable; urgency=low
+
+  [ Thomas Lange ]
+  * major rewrite of the FAI guide
+  * extrbase.IMAGE: new hook that installs from a file system image
+    this is tested with Ubuntu 14.04 and CentOS 7
+  * fcopy: use xattrs, acl and selinux options if available
+  * use httpredir.debian.org instead of http.debian.net
+  * fai: fix test, Closes: #780733
+  * fai-mount-disk: now support lvm and RAID: Closes: #769229
+  * fai-mount-disk: add option -w, add btrfs support
+  * use .sh instead of .source suffix for file being sourced
+  * do not add machine-id into base file, create a new one Closes: #787235
+  * fai-monitor: add reply function which is used for autodiscover
+  * fai-monitor.8: add info about the new protocol extensions
+  * install_packages, get-config-dir-http: use curl instead of wget
+  * fai-make-nfsroot: remove option -l, add otion -z, use xz as default
+    compression,
+    use os-release to define more classes for install_packages,
+    use fcopy for sources.list if it's not a file
+    remove more files if building generic nfsroot
+    add test if sysvinit-core was installed
+    setup ssh environment when using -a
+    use apt-get instead of aptitude
+    do not install recommends inside nfsroot
+    install dracut-* packages early, they are now hardcoded here
+    add dracut.conf.d files to make initrd smaller
+    check if some essential packages are installed
+    use environment variable APTPROXY
+    add the key of the fai-project package repository
+    make sure to install fai-nfsroot before other packages
+    add livenet module, which is needed for getting the nfsroot via http
+  * fai-setup: also add config space dir to exports, new home dir for
+    LOGUSER, exit with correct error code
+  * fai-cd: add -A, -J, -e, fix xorriso options to USB sticks bootable
+    do only copy dists and pool dirs from mirror, do not put
+    resolv.conf onto the CD, add more dirs to hide list
+    do not add memtest menu entry on bootonly CD
+  * grub.cfg: add --unrestricted to some menu entries, handle boot from
+    local disk via chainloader more advanced
+    add entry for FAI server with fixed IP
+    do not enable networking for the rescue boot entry
+  * install_packages: add dnf support
+  * subroutines: print execution time for each task if $duration is set
+    do not print hash of ROOTPW
+    new subroutine read_fai_monitor_vars, called by task_confdir
+    check if kernel modules dir matches the kernel version
+    check only for network or CD installation, Closes: #788230
+    print disk_config if an error occurs within setup-storage
+    put apt keys into separate files
+  * control: add mksquashfs-tools
+  * fai-mirror: take arch into account in base-pkgs.lis, do not remove
+    reprepro dirs in mirror, fix order of getting packages,
+    preserve reprepro config files,
+    also use files in /etc/fai/apt/sources.list.d
+    add option -P, Thanks to Andreas Heinlein for the patch
+    save and restore sources.list, use xz instead of bz2
+  * dhcp-edit: make restart_dhcpd more quiet, allow non-root if using -d
+  * fai.conf: add detailed info about FAI_CONFIG_SRC format
+  * fai-kvm: add option -D, -V, -U, -N, -t, disable floppy disk
+    increase default dis size, improve help
+  * add fai-kvm to package fai-client
+  * new script fai-mk-network for creating test networks
+  * NFSROOT: use class DEBIAN_8, do not install systemd-sysv into the
+    nfsroot, add dracut-config-generic, use curl instead of wget
+  * increase MAXPACKAGES
+  * 10-setup: call update-grub later, disable os-prober because of #788062
+  * package_config: add desktop-base for nicer grub and desktop background
+  * 20-capabilities: add fping executables, print message on success
+  * get-config-dir-http: add ram disk before extracting, remove md5sum
+    checking
+  * simple examples: fix SELinux problems with CentOS 7, fix gnome package
+    name, use apt-get instead of aptitude for linux-image packages,
+    xfcehost now uses lvm partitions,
+    add templates for sources.list for UBUNTU and GNOME, generate Ubuntu
+    sources.list dynamically via netselect
+  * add Ubuntu profile
+  * major improve of FAISERVER example, setup of FAI server done by
+    rc.local
+  * 20-hwdetect.source: fix setting $disklist, calling set_disk_info is
+    insufficient
+    50-host-classes: set class DHCP depending on the content of the ip=
+    parameter of the kernel command line
+  * 40-parse-profiles.sh: new script for creating a curses based menu
+  * Commands.pm: use parted instead of sfdisk for setting boot flag
+    Closes: #798390
+  * Fstab.pm: put comments on a seperate line, Closes: #784842
+    Thanks to Raphael Geissert for the patch
+  * task_sysinfo: start lvm, Closes: #769229, print also btrfs infos
+  * fai-chboot: add support for writing .tmpl files, new default (-1) for
+    localboot, search nfsroot for kernel suffix, several fixes
+  * fai-chboot.8: improve -d, -e description, Closes: #800475
+  * create_resolv_conf: use dracut's resolv.conf if available
+  * fai-nfsroot2image removed, this can now be done using fai-cd
+  * fai-savelog: return error code if scp fails
+  * subroutines: call task_error after fai-savelog -r
+  * get-boot-info: do not use DHCP hostname if already set
+  * drop support for old script names which were changed in 4.0
+  * add dracut module for fai autodiscover, add grub.cfg.autodiscover
+  * instsoft.DEBIAN: add ucf example, Closes: #313397, #502394
+  * mk-basefile: update Ubuntu support
+  * fai: if no hostname was set, use IP for setting the hostname
+  * 40-misc: create mtab symlink
+
+  [ Kerim Güney ]
+  * fai-cd: use dracut instead of live-boot, remove option -n, -k,
+    add option -S, -A
+  * grub.cfg: adjust option for booting with dracut
+  * Exec.pm: print original error message if no predefined message is
+    detected
+  * Commands.pm: Allow single device/partition btrfs configurations using
+    the same simple disk_config syntax as for ext4 etc.
+    Prevent setup-storage from attempting to run mkfs twice for single
+    device btrfs filesystems
+    Remove hardcoded fstabkey and enables using label and uuid for btrfs
+    Don't disable volume groups that need to be preserved, Closes: #787843
+    implement test for btrfs/lvm create options, Closes: #750212
+  * setup-storage: support parted's old "resize" command and also the new
+    "resizepart", add support for parted >=2.4, Closes: #785804
+    enable installation of LVM volume groups directly onto an
+    unpartitioned disk.
+  * Fstab.pm: list all btrfs devices in comment line
+  * Parser.pm: Catch disk config that dictates preserving a partition that
+    doesn't exist
+  * setup-storage: test if we need a reload or restart of the nfs server
+  * fai-guide: review and update
+
+  [ Thomas Neumann ]
+  * Fstab.pm: use local variable instead of global, remove &FAI:: from
+    local function
+
+  [ Moritz 'Morty' Strübe ]
+  * fetch-basefile: create basefiles-folder if it does not exist
+  * fai-make-nfsroot: fix check for /sbin/init
+  
+ -- Thomas Lange <lange@debian.org>  Mon, 23 Nov 2015 19:09:12 +0100
+
 fai (4.3.2) unstable; urgency=low
 
   [Thomas Lange]
@@ -11,6 +148,7 @@ fai (4.3.2) unstable; urgency=low
   * fai-disk-info, Init.pm: add regex for FusionIO devices
   * install_packages: change perl syntax, thanks to Rainer Müller for the
     patch
+  *get-config-dir: create $FAI directory
   * update copyright dates
 
   [ Kerim Güney ]

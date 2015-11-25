@@ -1,8 +1,24 @@
 #! /bin/bash
 
-# copyright Thomas Lange 2001-2011, lange@debian.org
+# copyright Thomas Lange 2001-2015, lange@debian.org
 
 error=0; trap 'error=$(($?>$error?$?:$error))' ERR # save maximum error code
+
+# check if mdadm has been forgotten
+if grep -q active /proc/mdstat 2>/dev/null; then
+    if [ ! -d $target/etc/mdadm ]; then
+	echo ERROR: Found Software RAID, but the mdadm package was not installed
+	error=1
+    fi
+fi
+
+usedm=$(dmsetup ls | egrep -v '^live-rw|^live-base|^No devices found' | wc -l)
+if [ $usedm -ne 0 ]; then
+    if [ ! -d $target/etc/lvm ]; then
+	echo ERROR: Found lvm devices, but the lvm2 package was not installed
+	error=1
+    fi
+fi
 
 # remove backup files from cfengine, but only if cfengine is installed
 if [ -x /usr/sbin/cfagent ] || [ -x $target/usr/sbin/cfagent ] ; then
@@ -30,10 +46,12 @@ if ifclass DEBIAN ; then
         $ROOTCMD apt-get -f install
 fi
 
-lskernels=$(echo $target/boot/vmlinu*)
-[ -f ${lskernels%% *} ] || echo "ERROR: No kernel was installed. Have a look at shell.log" >&2
+if [ $FAI_ACTION = "install" ]; then
+    lskernels=$(echo $target/boot/vmlinu*)
+    [ -f ${lskernels%% *} ] || echo "ERROR: No kernel was installed. Have a look at shell.log" >&2
+fi
+
 # copy sources.list
 fcopy -iM /etc/apt/sources.list
 
 exit $error
-

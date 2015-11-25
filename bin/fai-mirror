@@ -5,7 +5,7 @@
 # fai-mirror -- create and manage a partial mirror for FAI
 #
 # This script is part of FAI (Fully Automatic Installation)
-# (c) 2004-2012, Thomas Lange, lange@informatik.uni-koeln.de
+# (c) 2004-2015, Thomas Lange, lange@informatik.uni-koeln.de
 #
 #*********************************************************************
 # This program is free software; you can redistribute it and/or modify
@@ -119,19 +119,24 @@ initialize() {
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 delete_base_packages() {
 
-    # now delete all packages that are already included in base.tgz
-    local p
+    # now delete all packages that are already included in base.tar.xz
+    local p all arch
 
     if [ ! -f $NFSROOT/var/tmp/base-pkgs.lis ]; then
         echo "$NFSROOT/var/tmp/base-pkgs.lis not available."
-        echo "Can't remove wasteful packages that are already in base.tgz."
+        echo "Can't remove wasteful packages that are already in base.tar.xz."
         return
     fi
-    echo "Removing packages that are already included in base.tgz"
+    echo "Removing packages that are already included in base.tar.xz"
     for p in $(< $NFSROOT/var/tmp/base-pkgs.lis); do
-        if [ -f $archivedir/${p}_*.deb ]; then
-            [ $verbose -eq 1 ] && echo "deleting package $p"
-            rm $archivedir/${p}_*.deb
+
+        all=(${p//:/ })
+        p=${all[0]}
+        arch=${all[1]}
+
+        if [ -f $archivedir/${p}_*$arch.deb ]; then
+            [ $verbose -eq 1 ] && echo "deleting package $p $arch"
+            rm $archivedir/${p}_*$arch.deb
         fi
     done
 }
@@ -139,7 +144,7 @@ delete_base_packages() {
 add_base_packages() {
 
     local plist
-    # add packages from base.tgz and additional packages in nfsroot
+    # add packages from base.tar.xz and additional packages in nfsroot
 
     # arch dependent packages defined in fai-make-nfsroot
     echo "Adding packages of $cfdir/NFSROOT."
@@ -151,7 +156,8 @@ add_base_packages() {
         echo "Can't add those packages. Maybe the nfsroot is not yet created." >&2
     fi
 
-    # now use sources.list for debootstrap packages
+    mv $aptcache/etc/apt/sources.list $aptcache   # save sources.list
+    # now use different sources.list for debootstrap packages
     echo "$FAI_DEBOOTSTRAP" | awk '{printf "deb %s %s main\n",$2,$1}' | perl -p -e 's/file:/copy:/' > $aptcache/etc/apt/sources.list
     echo "Adding packages from $NFSROOT/var/tmp/base-pkgs.lis"
     if [ -f $NFSROOT/var/tmp/base-pkgs.lis ]; then
@@ -162,6 +168,8 @@ add_base_packages() {
         echo "WARNING: $NFSROOT/var/tmp/base-pkgs.lis does not exists." >&2
         echo "Can't add those packages. Maybe the nfsroot is not yet created." >&2
     fi
+    mv $aptcache/sources.list $aptcache/etc/apt/sources.list   # restore sources.list
+    apt-get $qflag $aptoptions update >/dev/null
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 set-classes() {
@@ -186,7 +194,7 @@ preserve=0
 verbose=0
 add=1
 qflag=-qq
-while getopts "a:Bvhx:pc:C:m:" opt ; do
+while getopts "a:Bvhx:pc:C:m:P:" opt ; do
     case "$opt" in
         a) arch=$OPTARG ;;
         B) add=0 ;;
@@ -197,6 +205,7 @@ while getopts "a:Bvhx:pc:C:m:" opt ; do
         m) MAXPACKAGES="$OPTARG";;
         p) preserve=1;;
         v) verbose=1; vflag=-v; qflag='';;
+        P) aptpref="$OPTARG";;
         ?) die 1 "Unknown option";;
     esac
 done
@@ -213,14 +222,9 @@ cfdir=$(readlink -f $cfdir) # canonicalize path
 . $cfdir/nfsroot.conf
 : ${MNTPOINT:=/media/mirror}  # default value
 
-if [ -d $NFSROOT/live/filesystem.dir ]; then
-    NFSROOT=$NFSROOT/live/filesystem.dir
-fi
 export NFSROOT
 
-[ -n "$packages" ] && die "WARNING: The use of \$packages in nfsroot.conf is now deprecated. Please include this information into $cfdir/NFSROOT."
-[ -n "$NFSROOT_PACKAGES" ] && die "WARNING: The use of \$packages in nfsroot.conf is now deprecated. Please include this information into $cfdir/NFSROOT."
-
+[ -x "$(which reprepro)" ] || die 8 "reprepro not found. Please install the package."
 [ -n "$exclasses" -a -n "$cclasses" ] && die 3 "Options -x and -c not allowed at the same time."
 
 # use first argument if given, use variable mirrordir if not argument was given
@@ -249,14 +253,20 @@ fi
 
 # TODO: use -p to preserve sources.list
 sed -e 's/file:/copy:/' $cfdir/apt/sources.list >> $aptcache/etc/apt/sources.list
+if [ "$(ls -A $cfdir/apt/sources.list.d/ 2>/dev/null)" ]; then
+    sed -e 's/file:/copy:/' $cfdir/apt/sources.list.d/* >> $aptcache/etc/apt/sources.list
+fi
 
+if [ -f "$aptpref" ]; then
+    cp "$aptpref" $aptcache/etc/apt/preferences
+fi
 echo "Getting package information"
 apt-get $qflag $aptoptions update >/dev/null
 
 set-classes
+[ $add -eq 1 ] && add_base_packages
 echo "Downloading packages for classes:" $classes
 FAI=$FAI_CONFIGDIR install_packages -d $vflag
-[ $add -eq 1 ] && add_base_packages
 umount_dirs
 trap "" EXIT ERR
 [ $add -eq 0 ] && delete_base_packages
@@ -268,7 +278,7 @@ cat > $mirrordir/conf/distributions <<EOF   # generate config file for reprepro
 Codename: cskoeln
 Architectures: i386 amd64
 Components: main non-free contrib
-DebIndices: Packages Release . .bz2
+DebIndices: Packages Release . .xz
 Description: FAI packages from author's repository
 Label: fai-project.org
 Origin: Original FAI archive
@@ -278,8 +288,8 @@ EOF
 
 # maybe using reprepro pulls it's possible to move instead of copy the packages
 reprepro -b $mirrordir includedeb cskoeln $mirrordir/aptcache/var/cache/apt/archives/*.deb
-rm -rf $mirrordir/db $mirrordir/conf $mirrordir/aptcache/var/cache/apt/archives
+rm -r $mirrordir/aptcache/var/cache/apt/archives/*.deb
 
 echo "$0 finished."
-echo -n "Mirror size and location: ";du -sh $mirrordir
+echo -n "Mirror size and location: ";du -sh --exclude aptcache --exclude db $mirrordir
 cleandirs

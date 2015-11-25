@@ -114,7 +114,6 @@ register_serial(): autoconfig failed
 Fontconfig error: Cannot load default config file
 asking for cache data failed
 However, I can not read the target:
-fai-kernels/modules.dep: No such file
 Warning: The partition table looks like it was made
 task_error=0
 ^info: Trying to set
@@ -143,6 +142,12 @@ ERST: Error Record Serialization Table (ERST) support is initialized
 ERST: Table is not found
 HEST: Table not found
 failed to stat /dev/pts
+Failed to connect to socket /var/run/dbus/system_bus_socket
+fail to add MMCONFIG information
+can't initialize iptables table
+can't initialize ip6tables table
+Authentication warning overridden
+update-alternatives: warning: skip creation of
 update-rc.d: warning: start and stop actions are no longer supported"
 
 # add pattern on some conditions
@@ -154,8 +159,8 @@ fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Here you can define your own patterns. Put one pattern in a line,
 # do not create empty lines.
-myerrorpatterns="XXXXX"
-myignorepatterns="XXXXX"
+myerrorpatterns="X_X-X_XX"
+myignorepatterns="X_X-X_XX"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # The main routine
 errorpatterns="$globalerrorpatterns

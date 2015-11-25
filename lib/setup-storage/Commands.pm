@@ -46,6 +46,12 @@ my %partition_table_deps;
 ################################################################################
 
 my @preserved_raid = ();
+my $parted_version = 0;
+
+sub get_parted_version {
+  my ($major, $minor) = (`parted -v | head -1` =~ m/\s+(\d).(\d)/);
+  $parted_version = 1 if ($major >= 3 or ($major == 2 and $minor >= 4));
+}
 
 sub build_mkfs_commands {
 
@@ -59,7 +65,7 @@ sub build_mkfs_commands {
   my $fs = $partition->{filesystem};
   my $journal = $partition->{journal_dev};
 
-  return if ($fs eq "-");
+  return if ($fs eq "-" or $fs eq "btrfs");
 
   my ($create_options) = $partition->{createopts};
   my ($tune_options)   = $partition->{tuneopts};
@@ -292,6 +298,36 @@ sub build_cryptsetup_commands {
 #
 ################################################################################
 sub build_btrfs_commands {
+  my $forcebtrfs = &btrfs_options;
+
+# following monstrosity takes care of single device/partition btrfs disk configs
+  foreach my $c (keys %FAI::configs) {
+    next unless ($c =~ /^PHY_(.+)$/);
+    my $device = $1;
+    my $single_vol_index = 0;
+    my $config = 'BTRFS';
+    my $volume;
+    my $this_fs;
+    foreach my $p (keys %{ $FAI::configs{$c}{partitions} }) {
+      $this_fs = $FAI::configs{$c}{partitions}{$p}{filesystem};
+      next unless defined($this_fs);
+      next unless ($this_fs eq 'btrfs');
+      $volume = 'single_' . $single_vol_index;
+      $FAI::configs{$config}{volumes}{$volume}{encrypt} = $FAI::configs{$c}{partitions}{$p}{encrypt};
+      $FAI::configs{$config}{volumes}{$volume}{raidlevel} = 'single';
+      $FAI::configs{$config}{volumes}{$volume}{filesystem} = $this_fs;
+      $FAI::configs{$c}{partitions}{$p}{filesystem} = '-';
+      $FAI::configs{$config}{volumes}{$volume}{mountpoint} = $FAI::configs{$c}{partitions}{$p}{mountpoint};
+      $FAI::configs{$c}{partitions}{$p}{mountpoint} = '-';
+      $FAI::configs{$config}{volumes}{$volume}{mount_options} = $FAI::configs{$c}{partitions}{$p}{mount_options};
+      $FAI::configs{$c}{partitions}{$p}{mount_options} = '-';
+      $FAI::configs{$config}{volumes}{$volume}{fstabkey} = $FAI::configs{$c}{fstabkey};
+      $FAI::configs{$config}{volumes}{$volume}{devices}{$device . $p} = {};
+      $FAI::configs{$config}{opts_all} = {};
+      $single_vol_index++;
+    }
+  }
+
   foreach my $config (keys %FAI::configs) { # loop through all configs
     next unless ($config eq "BTRFS");
 
@@ -306,10 +342,9 @@ sub build_btrfs_commands {
     my $mountpoint = $vol->{mountpoint};
     my $mountoptions = $vol->{mount_options};
     ($mountoptions =~ m/subvol=([^,\s]+)/ and my $initial_subvolume= $1) or die "You must define an initial subvolume for your BTRFS RAID";
-    my $btrfscreateopts =  $vol->{btrfscreateopts};
-    defined($btrfscreateopts) or $btrfscreateopts = "";
-    my $createopts = $vol->{createopts};
-    defined($createopts) or $createopts = "";
+    my $btrfscreateopts =  $vol->{btrfscreateopts} // "" ;
+    my $createopts = $vol->{createopts} // "";
+    $createopts .= " $forcebtrfs";
     my $pre_req = "";
     # creates the proper prerequisites for later command ordering
     foreach (@devs) {
@@ -592,7 +627,7 @@ sub setup_logical_volumes {
   my ($config) = @_;
   ($config =~ /^VG_(.+)$/) and ($1 ne "--ANY--") or &FAI::internal_error("Invalid config $config");
   my $vg = $1; # the actual volume group
-
+  my $optyes = &lvm_options;
   # now create or resize the configured logical volumes
   foreach my $lv (@{ $FAI::configs{$config}{ordered_lv_list} }) {
     # reference to the size of the current logical volume
@@ -628,8 +663,13 @@ sub setup_logical_volumes {
           &FAI::push_command( "resize2fs /dev/$vg/$lv ${block_count}s",
             "e2fsck_f_resize_$vg/$lv", "lv_shrink_$vg/$lv" );
         } else {
-          &FAI::push_command( "parted -s /dev/$vg/$lv resize 1 0 " . $lv_size->{eff_size} .  "B",
-            "vg_enabled_$vg", "lv_shrink_$vg/$lv" );
+          if ($parted_version) {
+            &FAI::push_command( "parted -s /dev/$vg/$lv resizepart 1 " . $lv_size->{eff_size} .  "B",
+                                "vg_enabled_$vg", "lv_shrink_$vg/$lv" );
+          } else {
+           &FAI::push_command( "parted -s /dev/$vg/$lv resize 1 0 " . $lv_size->{eff_size} .  "B",
+                               "vg_enabled_$vg", "lv_shrink_$vg/$lv" );
+         }
         }
         &FAI::push_command( "lvresize -L $lvsize_mib $vg/$lv",
           "vg_enabled_$vg,lv_shrink_$vg/$lv", "lv_created_$vg/$lv" );
@@ -644,8 +684,13 @@ sub setup_logical_volumes {
           &FAI::push_command( "resize2fs /dev/$vg/$lv ${block_count}s",
             "e2fsck_f_resize_$vg/$lv", "exist_/dev/$vg/$lv" );
         } else {
-          &FAI::push_command( "parted -s /dev/$vg/$lv resize 1 0 " . $lv_size->{eff_size} .  "B",
-            "vg_enabled_$vg,lv_grow_$vg/$lv", "exist_/dev/$vg/$lv" );
+          if ($parted_version) {
+            &FAI::push_command( "parted -s /dev/$vg/$lv resizepart 1 " . $lv_size->{eff_size} .  "B",
+                                "vg_enabled_$vg,lv_grow_$vg/$lv", "exist_/dev/$vg/$lv" );
+          } else {
+           &FAI::push_command( "parted -s /dev/$vg/$lv resize 1 0 " . $lv_size->{eff_size} .  "B",
+                                "vg_enabled_$vg,lv_grow_$vg/$lv", "exist_/dev/$vg/$lv" );
+         }
         }
       }
 
@@ -659,6 +704,7 @@ sub setup_logical_volumes {
     my ($create_options) = $FAI::configs{$config}{volumes}{$lv}{lvcreateopts};
     # prevent warnings of uninitialized variables
     $create_options = '' unless $create_options;
+    $create_options .= " $optyes";
     print "/dev/$vg/$lv LV create_options: $create_options\n" if ($FAI::debug && $create_options);
     # create a new volume
     &FAI::push_command( "lvcreate $create_options -n $lv -L " .
@@ -819,14 +865,25 @@ sub build_lvm_commands {
       $tmp_vg = $1 if $tmp_vg =~ /(\S+)$/;
       $preserved = 1 if ($tmp_vg eq $vg);
     }
+
+    # prevent error due to different VG name of existing VG
+    if (defined($FAI::configs{$d})) {
+      # don't deactivate preserved VGs to prevent blkid error later on
+      foreach my $v (keys %{ $FAI::configs->{$d}->{volumes} }) {
+        $preserved = 1 if ($FAI::configs{$d}{volumes}{$v}{size}{preserve});
+      }
+    }
+
     &FAI::push_command("vgchange -a n $vg", "$pre_deps_vgc", $vg_pre)
       unless $preserved;
 
     $vg_pre .= ",pv_sigs_removed_$vg" if (&FAI::cleanup_vg($vg));
     my $pre_deps_cl = "";
-    $pre_deps_cl = ",self_cleared_" .
-      join(",self_cleared_", @{ $FAI::current_dev_children{$d} })
-      if (scalar(@{ $FAI::current_dev_children{$d} }));
+    if (defined($FAI::current_dev_children{$d})) {
+      $pre_deps_cl = ",self_cleared_" .
+        join(",self_cleared_", @{ $FAI::current_dev_children{$d} })
+          if (scalar(@{ $FAI::current_dev_children{$d} }));
+    }
     &FAI::push_command("true", "$vg_pre$pre_deps_cl", "self_cleared_VG_$vg");
   }
 
@@ -1197,11 +1254,16 @@ sub setup_partitions {
     ##     " ${block_count}s", "e2fsck_f_resize_" . &FAI::make_device_name($disk, $p),
     ##     "resized_" .  &FAI::make_device_name($disk, $p) );
     } else {
-      &FAI::push_command( "parted -s $disk resize $p ${start}B ${end}B",
-        "rebuilt_" . &FAI::make_device_name($disk, $p) . $deps, "resized_" .
-        &FAI::make_device_name($disk, $p) );
+      if ($parted_version) {
+        &FAI::push_command( "parted -s $disk resizepart $p ${end}B",
+                            "rebuilt_" . &FAI::make_device_name($disk, $p) . $deps, "resized_" .
+                            &FAI::make_device_name($disk, $p) );
+      } else {
+        &FAI::push_command( "parted -s $disk resize $p ${start}B ${end}B",
+                            "rebuilt_" . &FAI::make_device_name($disk, $p) . $deps, "resized_" .
+                            &FAI::make_device_name($disk, $p) );
+      }
     }
-
   }
 
   # write the disklabel again to drop the partition table and create a new one
@@ -1277,7 +1339,7 @@ sub setup_partitions {
     $prev_id = $part_id;
   }
 
-  &FAI::push_command("echo ,,,* | sfdisk --force $boot_disk -N1",
+  &FAI::push_command("parted $boot_disk set 1 boot on",
     "pt_complete_$disk", "gpt_bios_fake_bootable")
     if($FAI::configs{$config}{disklabel} eq "gpt-bios" and $boot_disk);
 
@@ -1298,7 +1360,7 @@ sub build_disk_commands {
   # loop through all configs
   foreach my $config ( keys %FAI::configs ) {
     # no RAID, encrypted, tmpfs or LVM devices here
-    next if ($config eq "BTRFS" || $config eq "RAID" || $config eq "CRYPT" || $config eq "TMPFS" || $config =~ /^VG_./);
+    next if ($config eq "BTRFS" || $config eq "RAID" || $config eq "CRYPT" || $config eq "TMPFS" || $config =~ /^VG_./ || $FAI::configs{$config}{vg});
     ($config =~ /^PHY_(.+)$/) or &FAI::internal_error("Invalid config $config");
     my $disk = $1; # the device to be configured
 
@@ -1393,6 +1455,30 @@ sub restore_partition_table {
   }
 
   die "setup-storage failed, but the partition tables have been restored\n";
+}
+
+################################################################################
+#
+# @brief test whether --force option is available for btrfs, wheezy/jessie
+#
+################################################################################
+sub btrfs_options {
+  # check if --force is available for mkfs.btrfs
+  my $opt = `mkfs.btrfs 2>&1`;
+  my $btrfsopt = $opt =~ '--force' ? '-f' : '';
+  return $btrfsopt;
+}
+
+################################################################################
+#
+# @brief test whether --yes option is available for lvcreate, wheezy/jessie
+#
+################################################################################
+# Closes: #750212
+sub lvm_options {
+  my $opt = `lvcreate --yes 2>&1`;
+  my $lvmopt = $opt =~ 'unrecognized option' ? '' : '--yes';
+  return $lvmopt;
 }
 
 ################################################################################

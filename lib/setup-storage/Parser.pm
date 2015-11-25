@@ -32,6 +32,7 @@ use strict;
 ################################################################################
 
 use Parse::RecDescent;
+use Cwd qw(abs_path);
 use Storable qw(dclone);
 
 package FAI;
@@ -106,7 +107,7 @@ sub resolve_disk_shortname {
   ($disk =~ m{^/}) or $disk = "/dev/$disk";
   my @candidates = glob($disk);
   die "Failed to resolve $disk to a unique device name\n" if (scalar(@candidates) > 1);
-  $disk = $candidates[0] if (scalar(@candidates) == 1);
+  $disk = abs_path($candidates[0]) if (scalar(@candidates) == 1);
   die "Device name $disk could not be substituted\n" if ($disk =~ m{[\*\?\[\{\~]});
 
   return $disk;
@@ -459,6 +460,7 @@ $FAI::Parser = Parse::RecDescent->new(
           $FAI::configs{$FAI::device}{fstabkey} = "device";
           $FAI::configs{$FAI::device}{opts_all} = {};
         }
+        btrfs_option(s?)
         | 'cryptsetup'
         {
           &FAI::in_path("cryptsetup") or die "cryptsetup not found in PATH\n";
@@ -549,6 +551,11 @@ $FAI::Parser = Parse::RecDescent->new(
           } else {
             $FAI::configs{RAID}{volumes}{$_}{always_format} = 1 foreach (split (",", $1));
           }
+        }
+
+    btrfs_option: /^fstabkey:(device|label|uuid)/
+        {
+        $FAI::configs{$FAI::device}{fstabkey} = $1;
         }
 
     cryptsetup_option: /^randinit/
@@ -695,6 +702,10 @@ $FAI::Parser = Parse::RecDescent->new(
         {
           # the information preferred for fstab device identifieres
           $FAI::configs{$FAI::device}{fstabkey} = $1;
+        }
+	| /^vg:(\d+)/
+	{
+          $FAI::configs{$FAI::device}{vg} = $1;
         }
 	| /^sameas:(\S+)/
 	{
@@ -980,6 +991,7 @@ $FAI::Parser = Parse::RecDescent->new(
             # might be created later on
             unless ($dev =~ m{^/}) {
               if ($dev =~ m/^disk(\d+)\.(\d+)/) {
+                die "ERROR: No such disk disk$1\n" unless $FAI::disks[$1-1];
                 $dev = &FAI::make_device_name("/dev/" . $FAI::disks[ $1 - 1 ], $2);
               } elsif ($dev =~ m/^disk(\d+)/) {
                 $dev = "/dev/" . $FAI::disks[ $1 - 1 ];
@@ -1161,9 +1173,15 @@ sub check_config {
   # loop through all configs
   foreach my $config (keys %FAI::configs) {
     if ($config =~ /^PHY_(.+)$/) {
-      (scalar(keys %{ $FAI::configs{$config}{partitions} }) > 0) or
-        die "Empty disk_config stanza for device $1\n";
+      unless (exists($FAI::configs{$config}{vg}) && $FAI::configs{$config}{vg} == 1) {
+	(scalar(keys %{ $FAI::configs{$config}{partitions} }) > 0) or
+	  die "Empty disk_config stanza for device $1\n";
+      }
       foreach my $p (keys %{ $FAI::configs{$config}{partitions} }) {
+        # following catches if one attempts to use a partition that doesn't exist in the config file
+        if (!(defined($FAI::configs{$config}{partitions}{$p}{size}{range})) and $FAI::configs{$config}{partitions}{$p}{size}{extended} == 0) {
+          die "Cannot use non-existent partition (partition number $p). Please check your config.\n";
+        }
         next if (1 == $FAI::configs{$config}{partitions}{$p}{size}{extended});
         defined($FAI::configs{$config}{partitions}{$p}{mountpoint}) or
           &FAI::internal_error("Undefined mountpoint for non-extended partition");
@@ -1177,6 +1195,7 @@ sub check_config {
       }
     } elsif ($config =~ /^VG_(.+)$/) {
       next if ($1 eq "--ANY--");
+      next unless (keys %{ $FAI::configs{$config}{volumes} });
       (scalar(keys %{ $FAI::configs{$config}{volumes} }) ==
         scalar(@{ $FAI::configs{$config}{ordered_lv_list} })) or
         &FAI::internal_error("Inconsistent LV lists - missing entries");

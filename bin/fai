@@ -116,7 +116,7 @@ fai_init() {
 	fi
         pgrep rpc.statd > /dev/null || rpc.statd # idmapd needs this
 
-        if grep -wq devpts /proc/mounts; then
+        if ! grep -wq devpts /proc/mounts; then
             mount -t devpts devpts /dev/pts
         fi
         cat /proc/kmsg >/dev/tty4 &
@@ -128,6 +128,9 @@ fai_init() {
         while read addr iface; do
             ip -4 addr change "$addr" dev "$iface" valid_lft forever preferred_lft forever
         done
+
+        # tune some nfs parameters
+        mount -oremount,ro,noatime /live/image
 
         # start secure shell daemon for remote access
         [ "$flag_sshd" -a -x /usr/sbin/sshd ] && /usr/sbin/sshd
@@ -291,9 +294,20 @@ if [ $do_init_tasks -eq 1 ]; then
         esac
     done
     unset word
+    if [ -n "$HOSTNAME" ]; then
+	hostname $HOSTNAME
+	export HOSTNAME
+    fi
 
-    hostname $HOSTNAME
-    export HOSTNAME
+    # if the host name is still not set, use the IP for setting the hostname
+    hname=$(hostname)
+    if [ -z "$HOSTNAME" -o $HOSTNAME = '(none)' -o -z "$hname" ]; then
+	myip=$(ip ad show up | grep -w inet | cut -d t -f 2 | cut -d ' ' -f 2 | cut -d / -f 1 | grep -v 127.0.0.1| tr '.' '-')
+	export HOSTNAME="ip-$myip"
+	hostname $HOSTNAME
+	echo "Using IP for setting the host name: $HOSTNAME"
+    fi
+    unset hname myip
 
     renewclass=1 # always renew class list when installing
     mkdir -p /var/lib/discover /var/discover /etc/sysconfig

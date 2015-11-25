@@ -64,12 +64,19 @@ setnet() {
 
     # get network parameters
     # first get first active network device
-    local dev dummy
-    dev=$(ip ad show up | awk -F': ' '/^[0-9]/ && ! / lo:/ {print $2;exit}')
-    if [ -z "$dev" ]; then
-        sleep 3 # if interface needs some time to come up
-        dev=$(ip ad show up | awk -F': ' '/^[0-9]/ && ! / lo:/ {print $2;exit}')
-    fi
+    local dev dummy n
+
+    n=0
+    until [ $n = 7 ]; do
+	dev=$(ip ad show up | awk -F': ' '/^[0-9]/ && ! / lo:/ {print $2;exit}')
+	if [ -z "$dev" ]; then
+            sleep 2 # if interface needs some time to come up
+	else
+	    break
+	fi
+	n=$(($n + 1))
+    done
+
     read IPADDR NETMASK BROADCAST dummy<<<$(ifdata -p $dev)
     GATEWAYS=$(ip route | awk '/^default/ {print $3}')
 
@@ -83,6 +90,11 @@ setnet() {
 	GATEWAYS=$GATEWAYS
 	BROADCAST=$BROADCAST
 EOF
+
+    if [ -n "$DOMAIN" ]; then
+        # DOMAIN was specified on the kernel command line
+        echo "DOMAIN=$DOMAIN" >> $bootlog
+    fi
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 get_fixed_info() {
@@ -137,7 +149,14 @@ fi
 
 get_dhcp_info
 
+# DHCP should not overwrite the hostname if it's already set
+# then remove this line from boot.log
+hname=$(hostname)
+if [ -n "$hname" -o "$hname" = '(none)' ]; then
+    sed -i -e '/^HOSTNAME=/d' $bootlog
+fi
+
 if ! grep -q DOMAIN= $bootlog; then
-    echo 'Warning: no domain name configured, using "localdomain"' >&2
+    echo 'Info: no domain name configured, using "localdomain"' >&2
     echo "DOMAIN=localdomain" >> $bootlog
 fi

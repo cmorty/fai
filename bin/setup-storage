@@ -52,7 +52,8 @@ use warnings FATAL => qw(uninitialized);
 
 package FAI;
 
-my $version = "1.7";
+my $version = "2.0";
+$|=1;
 
 # command line parameter handling
 use Getopt::Std;
@@ -144,8 +145,7 @@ print "Using config file: $opt_f\n";
 # make sure there are no empty disk_config stanzas
 &FAI::check_config;
 
-if ($FAI::check_only)
-{
+if ($FAI::check_only) {
   print "Syntax ok\n";
   exit 0;
 }
@@ -211,6 +211,7 @@ $FAI::debug and print "Desired device tree\n";
 $FAI::debug and print Dumper \%FAI::dev_children;
 
 # generate the command script
+&FAI::get_parted_version;
 &FAI::build_disk_commands;
 &FAI::build_raid_commands;
 &FAI::build_btrfs_commands;
@@ -257,8 +258,7 @@ if ($FAI::no_dry_run) {
 $FAI::debug and print "$_=\${$_:-$FAI::disk_var{$_}}\n"
   foreach (keys %FAI::disk_var);
 
-if ($FAI::no_dry_run)
-{
+if ($FAI::no_dry_run) {
   open(DISK_VAR, ">$FAI::DATADIR/disk_var.sh")
     or die "Unable to write to file $FAI::DATADIR/disk_var.sh\n";
   print DISK_VAR "$_=\${$_:-$FAI::disk_var{$_}}\n" foreach (keys %FAI::disk_var);
